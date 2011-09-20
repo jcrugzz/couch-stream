@@ -14,6 +14,18 @@ var request = require('request')
     }
   }
 
+//setup CouchStream with default parameters
+
+function CouchStream(opts) {
+  return d.map(exports, function (func, k) {
+    return function CouchStream_wrapper(_opts) {
+      return func(d.merge({}, opts, _opts )) //merge ignores null.
+    }
+  })
+}
+
+exports = module.exports = CouchStream
+
 function getUrl (opts) {
   var host = opts.host || 'localhost'
     , port = opts.port || 5984
