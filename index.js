@@ -2,6 +2,7 @@ var request = require('request')
   , follow  = require('follow')
   , es      = require('event-stream')
   , d       = require('d-utils')
+  , qrystr  = require('querystring')
   
   function safeCB(func, cb) {
     return function () {
@@ -26,14 +27,20 @@ function CouchStream(opts) {
 
 exports = module.exports = CouchStream
 
+// refactor this so that it is always possible to 
+// set an opts.query object and pass any options that couch might accept.
 function getUrl (opts) {
   var host = opts.host || 'localhost'
     , port = opts.port || 5984
     , database = opts.database
-    , url
-    , url = opts.url || ('http://' + host + (port == 80 ? '' : ':' + port) + '/' + database)
+    , _id = opts._id
+    , query = qrystr.stringify(opts.query)
+    , url = opts.url || ('http://' + host + (port == 80 ? '' : ':' + port) 
+        + '/' + database
+        + (_id ? '/' + _id : '' )
+        ) + (query ? '?' + query : '')
 
-  return url
+    return url
 }
   
 function couchRequest (url, method, doc, callback) {
@@ -42,8 +49,6 @@ function couchRequest (url, method, doc, callback) {
   if(doc) opts.json = doc
   
   request(opts, safeCB(function (err, res, body) {
-
-    console.error(err, res, body)
 
     var parseErr
 
@@ -122,7 +127,6 @@ exports.wait = function (opts) {
 
   ;(function poll() {
     couchRequest(getUrl(opts), 'GET', function (err, json) {
-      console.log(err, json)
       if(err) {
         if (err.statusCode == 404)
           d.delay(poll, opts.poll)()
@@ -161,5 +165,35 @@ exports.create = function (opts) {
     })
   })()
 
+  return stream
+}
+
+
+//
+// ReadableStream: read a view in configurably sized chunks.
+//                 respect `pause`, and only request docs when the downstream is ready.
+
+exports.view = function (opts) {
+  var limit = opts.limit || 10
+    opts._id = opts.view || '_all_docs'
+
+  var stream = es.readable(function (i, next) {
+    var _opts = d.merge({}, opts, {query: opts.query })
+      , self = this
+    _opts.query.skip = limit*i
+    _opts.query.limit = limit
+
+    couchRequest(getUrl(_opts), 'GET', function (err, json) {
+      if(err)
+        return next(err)
+
+      json.rows.forEach(function (e) {
+        self.emit('data', e)        
+      })
+      if(json.rows.length + json.offset >= json.total_rows)
+        return self.emit('end')
+      next()
+    })
+  })
   return stream
 }
