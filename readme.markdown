@@ -1,3 +1,4 @@
+[![build status](https://secure.travis-ci.org/dominictarr/couch-stream.png)](http://travis-ci.org/dominictarr/couch-stream)
 # CouchStream
 
 A Stream interface for couchdb.  
